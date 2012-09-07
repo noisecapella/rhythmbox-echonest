@@ -1,0 +1,9 @@
+[Plugin]
+Loader=python
+Module=echonest-recommender
+IAge=2
+Name=Echo's Nest Recommender
+Description=Echo's Nest Recommender
+Authors=George Schneeloch <noisecapella@gmail.com>
+Copyright=
+Website=
