@@ -3,6 +3,8 @@ rhythmbox-echonest
 
 A rhythmbox recommendation plugin using echonest data.
 
+Based heavily off [http://github.com/asermax/lastfm_queue](http://github.com/asermax/lastfm_queue)
+
 Install
 -------
 
