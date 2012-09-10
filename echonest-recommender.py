@@ -1,6 +1,7 @@
 
 
 from gi.repository import GObject, RB, Peas, Gtk, GLib
+import json
 class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     __gtype_name = 'echonest-recommender'
     object = GObject.property(type=GObject.Object)
@@ -25,7 +26,10 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         shell.register_entry_type_for_source(self.echonest_source, self.entry_type)
         shell.append_display_page(self.echonest_source, playlist_group)
 
+        self.lookup_query_model = self.echonest_source.props.query_model
+
         self.echonest_source.initialize()
+
 
     def do_deactivate(self):
         shell = self.object
@@ -54,15 +58,37 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
             return
 
         self.current_entry = entry
+
         title = unicode(entry.get_string(RB.RhythmDBPropType.TITLE ), 'utf-8')
         artist = unicode(entry.get_string(RB.RhythmDBPropType.ARTIST ), 'utf-8')
+        self.get_similar_artists(artist, populate_similar_artists)
+
+    def sanitize(self, s):
+        return s.lower().replace(" ", "").replace("'", "")
+
+    def populate_similar_artists(self, raw_data):
+        similar_artists_json = json.loads(raw_data)
+        similar_artists = [self.sanitize(each["name"]) for each in similar_artists_json["response"]["artists"]]
         self.qm = RB.RhythmDBQueryModel.new_empty(self.db)
 
-        self.qm.add_entry(self.current_entry, -1)
-
+        for row in self.lookup_query_model:
+            entry = row[0]
+            artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
+            if self.sanitize(artist) in artist_list:
+                self.qm.add_entry(entry, -1)
+        
         self.echonest_source.props.query_model = self.qm
         self.echonest_source.get_entry_view().set_model(self.qm)
+
         
+    def get_similar_artists(self, artist, callback):
+        apiKey = "6PRGK3W5TCN30FPI0"
+        loader = rb.Loader()
+        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=10&start=0"
+        loader.get_url(url, self.populate_similar_artists)
+        #callback(artist_list)
+        pass
+    
 
 class EchoNestSource(RB.BrowserSource):
     def __init__(self):
