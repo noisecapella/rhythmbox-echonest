@@ -30,6 +30,8 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         self.echonest_source.initialize()
 
+        self.similar_artists_map = {}
+
 
     def do_deactivate(self):
         shell = self.object
@@ -66,33 +68,37 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     def sanitize(self, s):
         return s.lower().replace(" ", "").replace("'", "")
 
-    def populate_similar_artists(self, artist, raw_data):
-        similar_artists_json = json.loads(raw_data)
-        similar_artists = [self.sanitize(each["name"]) for each in similar_artists_json["response"]["artists"]]
-        similar_artists_map = {}
-        for each in similar_artists:
-            similar_artists_map[each] = True
+    def populate_similar_artists(self, first_artist):
+        first_artist_sanitized = self.sanitize(first_artist)
 
-        similar_artists_map[self.sanitize(artist)] = True
         self.qm = RB.RhythmDBQueryModel.new_empty(self.db)
 
         for row in self.object.props.library_source.props.base_query_model:
             entry = row[0]
             artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
-            if self.sanitize(artist) in similar_artists_map:
+            if self.sanitize(artist) in self.similar_artists_map[first_artist_sanitized] or self.sanitize(artist) == first_artist_sanitized:
                 self.qm.add_entry(entry, -1)
         
         self.echonest_source.props.query_model = self.qm
         self.echonest_source.get_entry_view().set_model(self.qm)
 
         
-    def get_similar_artists(self, artist):
+    def get_similar_artists(self, first_artist):
         apiKey = "XXXXXXXXXX"
-        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=10&start=0".format(apiKey, urllib.quote(artist.encode("utf8")))
+        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0".format(apiKey, urllib.quote(first_artist.encode("utf8")))
         
-        response = urllib2.urlopen(url)
-        
-        self.populate_similar_artists(artist, response.read())
+        first_artist_sanitized = self.sanitize(first_artist)
+        if first_artist_sanitized not in self.similar_artists_map:
+            response = urllib2.urlopen(url)
+            raw_data = response.read()
+            similar_artists_json = json.loads(raw_data)
+            similar_artists = [each["name"].encode("utf8") for each in similar_artists_json["response"]["artists"]]
+            m = {}
+            for each in similar_artists:
+                m[self.sanitize(each)] = each
+            self.similar_artists_map[first_artist_sanitized] = m
+
+        self.populate_similar_artists(first_artist)
 
 class EchoNestSource(RB.BrowserSource):
     def __init__(self):
