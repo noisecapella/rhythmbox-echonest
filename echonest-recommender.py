@@ -87,7 +87,7 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         
     def get_similar_artists(self, artist):
-        apiKey = "6PRGK3W5TCN30FPI0"
+        apiKey = "XXXXXXXXXX"
         url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=10&start=0".format(apiKey, urllib.quote(artist.encode("utf8")))
         
         response = urllib2.urlopen(url)
