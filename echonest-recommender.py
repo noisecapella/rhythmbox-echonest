@@ -1,6 +1,6 @@
 from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio
 import json
-import urllib2
+import urllib, urllib2
 
 class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     __gtype_name = 'echonest-recommender'
@@ -66,15 +66,20 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     def sanitize(self, s):
         return s.lower().replace(" ", "").replace("'", "")
 
-    def populate_similar_artists(self, raw_data):
+    def populate_similar_artists(self, artist, raw_data):
         similar_artists_json = json.loads(raw_data)
         similar_artists = [self.sanitize(each["name"]) for each in similar_artists_json["response"]["artists"]]
+        similar_artists_map = {}
+        for each in similar_artists:
+            similar_artists_map[each] = True
+
+        similar_artists_map[self.sanitize(artist)] = True
         self.qm = RB.RhythmDBQueryModel.new_empty(self.db)
 
-        for row in self.lookup_query_model:
+        for row in self.object.props.library_source.props.base_query_model:
             entry = row[0]
             artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
-            if self.sanitize(artist) in artist_list:
+            if self.sanitize(artist) in similar_artists_map:
                 self.qm.add_entry(entry, -1)
         
         self.echonest_source.props.query_model = self.qm
@@ -83,11 +88,11 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         
     def get_similar_artists(self, artist):
         apiKey = "6PRGK3W5TCN30FPI0"
-        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=10&start=0".format(apiKey, artist)
+        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=10&start=0".format(apiKey, urllib.quote(artist.encode("utf8")))
         
         response = urllib2.urlopen(url)
         
-        self.populate_similar_artists(response.read())
+        self.populate_similar_artists(artist, response.read())
 
 class EchoNestSource(RB.BrowserSource):
     def __init__(self):
