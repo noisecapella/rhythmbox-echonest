@@ -1,7 +1,7 @@
-
-
-from gi.repository import GObject, RB, Peas, Gtk, GLib
+from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio
 import json
+import urllib2
+
 class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     __gtype_name = 'echonest-recommender'
     object = GObject.property(type=GObject.Object)
@@ -61,7 +61,7 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         title = unicode(entry.get_string(RB.RhythmDBPropType.TITLE ), 'utf-8')
         artist = unicode(entry.get_string(RB.RhythmDBPropType.ARTIST ), 'utf-8')
-        self.get_similar_artists(artist, populate_similar_artists)
+        self.get_similar_artists(artist)
 
     def sanitize(self, s):
         return s.lower().replace(" ", "").replace("'", "")
@@ -81,14 +81,13 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         self.echonest_source.get_entry_view().set_model(self.qm)
 
         
-    def get_similar_artists(self, artist, callback):
+    def get_similar_artists(self, artist):
         apiKey = "6PRGK3W5TCN30FPI0"
-        loader = rb.Loader()
-        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=10&start=0"
-        loader.get_url(url, self.populate_similar_artists)
-        #callback(artist_list)
-        pass
-    
+        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=10&start=0".format(apiKey, artist)
+        
+        response = urllib2.urlopen(url)
+        
+        self.populate_similar_artists(response.read())
 
 class EchoNestSource(RB.BrowserSource):
     def __init__(self):
