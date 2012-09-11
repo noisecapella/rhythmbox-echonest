@@ -1,6 +1,7 @@
 from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio
 import json
 import urllib, urllib2
+import apikey
 
 class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     __gtype_name = 'echonest-recommender'
@@ -84,8 +85,7 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         
     def get_similar_artists(self, first_artist):
-        apiKey = "XXXXXXXXXX"
-        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0".format(apiKey, urllib.quote(first_artist.encode("utf8")))
+        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0".format(apikey.APIKEY, urllib.quote(first_artist.encode("utf8")))
         
         first_artist_sanitized = self.sanitize(first_artist)
         if first_artist_sanitized not in self.similar_artists_map:
