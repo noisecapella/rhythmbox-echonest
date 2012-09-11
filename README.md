@@ -16,7 +16,7 @@ For now, just cd to `~/.local/share/rhythmbox/plugins` and
 
 (You may need to create the folder if it doesn't exist)
 
-You also need an [Echo's Nest API key](http://developer.echonest.com). For now you need to edit `echonest-recommender.py` and replace "XXXXXXXXXX" with the API key. (Eventually I'll implement some kind of preference menu to handle this.)
+You also need an [Echo's Nest API key](http://developer.echonest.com). For now you need to copy `apikey.py.base` to `apikey.py` and replace "XXXXXXXXXX" with the API key. (Eventually I'll implement some kind of preference menu to handle this.)
 
 Usage
 -----
@@ -38,5 +38,4 @@ TODO
 ----
 
 - Some kind of escape button in case of too many similar artists.
-- Caching to greatly reduce the number of communications
 - Basic preferences
