@@ -39,3 +39,4 @@ TODO
 
 - Some kind of escape button in case of too many similar artists.
 - Basic preferences
+- Provide a UI to tweak the parameters that Echo's Nest provides

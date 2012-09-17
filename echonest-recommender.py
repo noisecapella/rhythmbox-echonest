@@ -1,7 +1,13 @@
-from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio
+import os
+from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio, GConf
 import json
 import urllib, urllib2
-import apikey
+
+GCONF_PREFIX = '/apps/rhythmbox/plugins/echonest-recommender'
+GCONF_MIN_FAMILIARITY = "min-familiarity"
+GCONF_MAX_FAMILIARITY = "max-familiarity"
+GCONF_APIKEY = "apikey"
+GCONF_UNIQUE_ARTIST = "unique-artist"
 
 class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     __gtype_name = 'echonest-recommender'
@@ -23,16 +29,23 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         self.entry_type = RB.RhythmDBEntryType()
         playlist_group = RB.DisplayPageGroup.get_by_id("playlists")
-        self.echonest_source = GObject.new(EchoNestSource, entry_type = self.entry_type, shell = shell, pixbuf=None, plugin=self)
+        self.echonest_source = GObject.new(EchoNestSource,
+                                           entry_type = self.entry_type,
+                                           shell = shell,
+                                           pixbuf=None, 
+                                           plugin=self)
         shell.register_entry_type_for_source(self.echonest_source, self.entry_type)
         shell.append_display_page(self.echonest_source, playlist_group)
 
         self.lookup_query_model = self.echonest_source.props.query_model
-
-        self.echonest_source.initialize()
+        
+        glade_file = self.find_file("source.glade")
+        gconf = GConf.Client.get_default()
+        self.echonest_source.initialize_ui(glade_file, gconf)
 
         self.similar_artists_map = {}
 
+        
 
     def do_deactivate(self):
         shell = self.object
@@ -85,7 +98,7 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         
     def get_similar_artists(self, first_artist):
-        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0".format(apikey.APIKEY, urllib.quote(first_artist.encode("utf8")))
+        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0".format(this.echonest_source.apikey, urllib.quote(first_artist.encode("utf8")))
         
         first_artist_sanitized = self.sanitize(first_artist)
         if first_artist_sanitized not in self.similar_artists_map:
@@ -100,20 +113,72 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         self.populate_similar_artists(first_artist)
 
+    def find_file(self, filename):
+        # from https://github.com/luqmana/rhythmbox-plugins/blob/master/equalizer/equalizer.py
+	info = self.plugin_info
+        data_dir = info.get_data_dir()
+        path = os.path.join(data_dir, filename)
+
+        if os.path.exists(path):
+            return path
+
+        return RB.file(filename)        
+
 class EchoNestSource(RB.BrowserSource):
     def __init__(self):
         RB.BrowserSource.__init__(self, name=_("Echo's Nest Recommendations"))
 
-    def initialize(self):
+    def save_state(self, widget, callback_data=None):
+        #TODO: save only one widget's information
+        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_MIN_FAMILIARITY, self.min_familiarity.get_value())
+        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_MAX_FAMILIARITY, self.max_familiarity.get_value())
+        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_UNIQUE_ARTIST, self.unique_artist.get_value())
+        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_APIKEY, self.apikey.get_value())
+        
+
+    def initialize_ui(self, glade_file, gconf):
         top_grid = self.get_children()[0]
 
         shell = self.props.shell
+        self.gconf = gconf
 
-        vbox = Gtk.VBox()
-        vbox.set_homogeneous(False)
+        builder = Gtk.Builder()
+        builder.add_from_file(glade_file)
+
+        window = builder.get_object("box1")
         top_grid.insert_row(0)
-        top_grid.attach(vbox, 0,0,1,1)
+        top_grid.attach(window, 0,0,1,1)
         self.show_all()
+
+        self.min_familiarity = builder.get_object("min_familiarity")
+        self.min_familiarity.set_range(0, 1)
+        self.min_familiarity.set_value(0.5)
+        self.max_familiarity = builder.get_object("max_familiarity")
+        self.max_familiarity.set_range(0, 1)
+        self.max_familiarity.set_value(0.25)
+        self.unique_artist = builder.get_object("unique_artist")
+        self.apikey = builder.get_object("apikey_entry")
+        
+        apikey_value = gconf.get_string(GCONF_PREFIX + "/" + GCONF_APIKEY)
+        if apikey_value:
+            self.apikey.set_value(apikey_value)
+        self.apikey.connect('changed', self.save_state)
+
+        min_familiarity_value = gconf.get_string(GCONF_PREFIX + "/" + GCONF_MIN_FAMILIARITY)
+        if min_familiarity_value:
+            self.min_familiarity.set_value(min_familiarity_value)
+        self.min_familiarity.connect('change-value', self.save_state)
+
+        max_familiarity_value = gconf.get_string(GCONF_PREFIX + "/" + GCONF_MAX_FAMILIARITY)
+        if max_familiarity_value:
+            self.max_familiarity.set_value(max_familiarity_value)
+        self.max_familiarity.connect('change-value', self.save_state)
+
+        unique_artist_value = gconf.get_string(GCONF_PREFIX + "/" + GCONF_UNIQUE_ARTIST)
+        if unique_artist_value:
+            self.unique_artist.set_value(unique_artist_value)
+        self.unique_artist.connect('toggled', self.save_state)
+
 
 
 GObject.type_register(EchoNestSource)
