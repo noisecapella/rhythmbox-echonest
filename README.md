@@ -16,7 +16,7 @@ For now, just cd to `~/.local/share/rhythmbox/plugins` and
 
 (You may need to create the folder if it doesn't exist)
 
-You also need an [Echo's Nest API key](http://developer.echonest.com). For now you need to copy `apikey.py.base` to `apikey.py` and replace "XXXXXXXXXX" with the API key. (Eventually I'll implement some kind of preference menu to handle this.)
+You also need an [Echo's Nest API key](http://developer.echonest.com). This should go in the API Key field in the playlist. This won't error if it's not there, I'll have to fix that eventually.
 
 Usage
 -----
@@ -38,5 +38,4 @@ TODO
 ----
 
 - Some kind of escape button in case of too many similar artists.
-- Basic preferences
-- Provide a UI to tweak the parameters that Echo's Nest provides
+- Error handling
