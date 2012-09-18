@@ -3,6 +3,7 @@ from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio, GConf, Gdk, GdkPixb
 import json
 import urllib, urllib2
 from gtk_persistence import GtkPersistence
+import random
 
 class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     __gtype_name = 'echonest-recommender'
@@ -93,25 +94,24 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         return s
 
     def scale(self, lst):
-        """Return a new lst which adds entries for each artist such that
-        every artist has the same number of tracks
-
-        TODO: we probably don't want some random artist with one track
-        to have the same number of tracks as someone else"""
+        """Return a new lst which removes entries for each artist such that
+        every artist has a similar number of tracks"""
         m = {}
-        max_songs = 0
         for entry in lst:
             artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
             sanitized_artist = self.sanitize(artist)
             if sanitized_artist not in m:
                 m[sanitized_artist] = []
             m[sanitized_artist].append(entry)
-            max_songs = max(max_songs, len(m[sanitized_artist]))
-        print "max_songs", max_songs
+
+        # calculate average number of songs per artist, with a minimum of 1
+        avg_songs = max(1, int(float(len(lst)) / len(m.keys())))
+        
         ret = []
         for sanitized_artist, sub_lst in m.iteritems():
-            for i in xrange(max_songs):
-                ret.append(sub_lst[i % len(sub_lst)])
+            for i in xrange(avg_songs):
+                index = int(random.random()*len(sub_lst))
+                ret.append(sub_lst[index])
         return ret
         
 
@@ -136,7 +136,8 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
             elif self.sanitize(artist) in self.similar_artists_map[url]:
                 lst.append(entry)
 
-        lst = self.scale(lst)
+        if self.echonest_source.scale_artists.get_active():
+            lst = self.scale(lst)
 
         for entry in lst:
             self.qm.add_entry(entry, -1)
@@ -206,7 +207,7 @@ class EchoNestSource(RB.BrowserSource):
 
         self.apikey = builder.get_object("apikey_entry")
         self.unique_artist = builder.get_object("unique_artist")
-
+        self.scale_artists = builder.get_object("scale_artists")
         gtkPersistence = GtkPersistence(gconf)
         window.foreach(gtkPersistence.apply_persistence, None)
 
