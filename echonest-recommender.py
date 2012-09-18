@@ -2,12 +2,7 @@ import os
 from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio, GConf
 import json
 import urllib, urllib2
-
-GCONF_PREFIX = '/apps/rhythmbox/plugins/echonest-recommender'
-GCONF_MIN_FAMILIARITY = "min-familiarity"
-GCONF_MAX_FAMILIARITY = "max-familiarity"
-GCONF_APIKEY = "apikey"
-GCONF_UNIQUE_ARTIST = "unique-artist"
+from gtk_persistence import GtkPersistence
 
 class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     __gtype_name = 'echonest-recommender'
@@ -140,7 +135,6 @@ class EchoNestSource(RB.BrowserSource):
         top_grid = self.get_children()[0]
 
         shell = self.props.shell
-        self.gconf = gconf
 
         builder = Gtk.Builder()
         builder.add_from_file(glade_file)
@@ -150,34 +144,9 @@ class EchoNestSource(RB.BrowserSource):
         top_grid.attach(window, 0,0,1,1)
         self.show_all()
 
-        self.min_familiarity = builder.get_object("min_familiarity")
-        self.min_familiarity.set_range(0, 1)
-        self.min_familiarity.set_value(0.5)
-        self.max_familiarity = builder.get_object("max_familiarity")
-        self.max_familiarity.set_range(0, 1)
-        self.max_familiarity.set_value(0.25)
-        self.unique_artist = builder.get_object("unique_artist")
-        self.apikey = builder.get_object("apikey_entry")
-        
-        apikey_value = gconf.get_string(GCONF_PREFIX + "/" + GCONF_APIKEY)
-        if apikey_value:
-            self.apikey.set_text(apikey_value)
-        self.apikey.connect('changed', self.save_state)
+        gtkPersistence = GtkPersistence(gconf)
+        window.foreach(gtkPersistence.apply_persistence, None)
 
-        min_familiarity_value = gconf.get_float(GCONF_PREFIX + "/" + GCONF_MIN_FAMILIARITY)
-        if min_familiarity_value:
-            self.min_familiarity.set_value(min_familiarity_value)
-        self.min_familiarity.connect('change-value', self.save_state)
-
-        max_familiarity_value = gconf.get_float(GCONF_PREFIX + "/" + GCONF_MAX_FAMILIARITY)
-        if max_familiarity_value:
-            self.max_familiarity.set_value(max_familiarity_value)
-        self.max_familiarity.connect('change-value', self.save_state)
-
-        unique_artist_value = gconf.get_bool(GCONF_PREFIX + "/" + GCONF_UNIQUE_ARTIST)
-        if unique_artist_value:
-            self.unique_artist.set_active(unique_artist_value)
-        self.unique_artist.connect('toggled', self.save_state)
 
 
 
