@@ -74,6 +74,7 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
             return
 
     def set_entry(self, entry):
+        """This is called whenever the current song changes"""
         if entry == self.current_entry or not entry:
             return
 
@@ -87,6 +88,8 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         return s.lower().replace(" ", "").replace("'", "")
 
     def populate_similar_artists(self, first_artist, url):
+        """Iterate through library and populate our playlist with similar artists"""
+        
         first_artist_sanitized = self.sanitize(first_artist)
 
         self.qm = RB.RhythmDBQueryModel.new_empty(self.db)
@@ -94,7 +97,14 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         for row in self.object.props.library_source.props.base_query_model:
             entry = row[0]
             artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
-            if self.sanitize(artist) in self.similar_artists_map[url] or self.sanitize(artist) == first_artist_sanitized:
+
+            if self.sanitize(artist) == first_artist_sanitized:
+                if self.echonest_source.unique_artist.get_active() == True:
+                    # skip this artist
+                    pass
+                else:
+                    self.qm.add_entry(entry, -1)
+            elif self.sanitize(artist) in self.similar_artists_map[url]:
                 self.qm.add_entry(entry, -1)
         
         self.echonest_source.props.query_model = self.qm
@@ -102,10 +112,16 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         
     def get_similar_artists(self, first_artist):
+        """Obtain similar artists, either from cache or from internet. Then call populate_artists with results"""
         url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0&min_familiarity={2}&max_familiarity={3}".format(urllib.quote(self.echonest_source.apikey.get_text()), urllib.quote(first_artist.encode("utf8")), self.echonest_source.min_familiarity.get_value(), self.echonest_source.max_familiarity.get_value())
-        
+
         if url not in self.similar_artists_map:
-            response = urllib2.urlopen(url)
+            try:
+                response = urllib2.urlopen(url)
+            except Exception as e:
+                print "ERROR:",e
+                print "FROM URL:",url
+                return
             raw_data = response.read()
             similar_artists_json = json.loads(raw_data)
             similar_artists = [each["name"].encode("utf8") for each in similar_artists_json["response"]["artists"]]
