@@ -130,10 +130,10 @@ class EchoNestSource(RB.BrowserSource):
 
     def save_state(self, widget, callback_data=None):
         #TODO: save only one widget's information
-        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_MIN_FAMILIARITY, self.min_familiarity.get_value())
-        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_MAX_FAMILIARITY, self.max_familiarity.get_value())
-        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_UNIQUE_ARTIST, self.unique_artist.get_value())
-        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_APIKEY, self.apikey.get_value())
+        self.gconf.set_float(GCONF_PREFIX + "/" + GCONF_MIN_FAMILIARITY, self.min_familiarity.get_value())
+        self.gconf.set_float(GCONF_PREFIX + "/" + GCONF_MAX_FAMILIARITY, self.max_familiarity.get_value())
+        self.gconf.set_bool(GCONF_PREFIX + "/" + GCONF_UNIQUE_ARTIST, self.unique_artist.get_active())
+        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_APIKEY, self.apikey.get_text())
         
 
     def initialize_ui(self, glade_file, gconf):
@@ -161,22 +161,22 @@ class EchoNestSource(RB.BrowserSource):
         
         apikey_value = gconf.get_string(GCONF_PREFIX + "/" + GCONF_APIKEY)
         if apikey_value:
-            self.apikey.set_value(apikey_value)
+            self.apikey.set_text(apikey_value)
         self.apikey.connect('changed', self.save_state)
 
-        min_familiarity_value = gconf.get_string(GCONF_PREFIX + "/" + GCONF_MIN_FAMILIARITY)
+        min_familiarity_value = gconf.get_float(GCONF_PREFIX + "/" + GCONF_MIN_FAMILIARITY)
         if min_familiarity_value:
             self.min_familiarity.set_value(min_familiarity_value)
         self.min_familiarity.connect('change-value', self.save_state)
 
-        max_familiarity_value = gconf.get_string(GCONF_PREFIX + "/" + GCONF_MAX_FAMILIARITY)
+        max_familiarity_value = gconf.get_float(GCONF_PREFIX + "/" + GCONF_MAX_FAMILIARITY)
         if max_familiarity_value:
             self.max_familiarity.set_value(max_familiarity_value)
         self.max_familiarity.connect('change-value', self.save_state)
 
-        unique_artist_value = gconf.get_string(GCONF_PREFIX + "/" + GCONF_UNIQUE_ARTIST)
+        unique_artist_value = gconf.get_bool(GCONF_PREFIX + "/" + GCONF_UNIQUE_ARTIST)
         if unique_artist_value:
-            self.unique_artist.set_value(unique_artist_value)
+            self.unique_artist.set_active(unique_artist_value)
         self.unique_artist.connect('toggled', self.save_state)
 
 
