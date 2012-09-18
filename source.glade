@@ -1,43 +1,38 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <!-- interface-requires gtk+ 3.0 -->
-  <object class="GtkBox" id="box1">
+  <object class="GtkTable" id="box1">
     <property name="visible">True</property>
     <property name="can_focus">False</property>
-    <property name="orientation">vertical</property>
+    <property name="valign">start</property>
+    <property name="n_rows">4</property>
+    <property name="n_columns">2</property>
     <child>
-      <object class="GtkBox" id="box2">
+      <object class="GtkEntry" id="apikey_entry">
         <property name="visible">True</property>
-        <property name="can_focus">False</property>
-        <child>
-          <object class="GtkLabel" id="apikey_label">
-            <property name="visible">True</property>
-            <property name="can_focus">False</property>
-            <property name="label" translatable="yes">API Key: </property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">0</property>
-          </packing>
-        </child>
-        <child>
-          <object class="GtkEntry" id="apikey_entry">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="invisible_char">•</property>
-          </object>
-          <packing>
-            <property name="expand">False</property>
-            <property name="fill">True</property>
-            <property name="position">1</property>
-          </packing>
-        </child>
+        <property name="can_focus">True</property>
+        <property name="invisible_char">•</property>
+        <property name="invisible_char_set">True</property>
       </object>
       <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">0</property>
+        <property name="left_attach">1</property>
+        <property name="right_attach">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkScale" id="max_familiarity">
+        <property name="visible">True</property>
+        <property name="can_focus">True</property>
+        <property name="upper_stepper_sensitivity">off</property>
+        <property name="fill_level">100</property>
+        <property name="round_digits">1</property>
+        <property name="value_pos">left</property>
+      </object>
+      <packing>
+        <property name="left_attach">1</property>
+        <property name="right_attach">2</property>
+        <property name="top_attach">2</property>
+        <property name="bottom_attach">3</property>
       </packing>
     </child>
     <child>
@@ -49,28 +44,46 @@
         <property name="value_pos">left</property>
       </object>
       <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">1</property>
+        <property name="left_attach">1</property>
+        <property name="right_attach">2</property>
+        <property name="top_attach">1</property>
+        <property name="bottom_attach">2</property>
       </packing>
     </child>
     <child>
-      <object class="GtkScale" id="max_familiarity">
+      <object class="GtkLabel" id="apikey_label">
         <property name="visible">True</property>
-        <property name="can_focus">True</property>
-        <property name="fill_level">100</property>
-        <property name="round_digits">1</property>
-        <property name="value_pos">left</property>
+        <property name="can_focus">False</property>
+        <property name="label" translatable="yes">API Key: </property>
+      </object>
+    </child>
+    <child>
+      <object class="GtkLabel" id="label1">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="yalign">0.49000000953674316</property>
+        <property name="label" translatable="yes">Min familiarity: </property>
       </object>
       <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">2</property>
+        <property name="top_attach">1</property>
+        <property name="bottom_attach">2</property>
+      </packing>
+    </child>
+    <child>
+      <object class="GtkLabel" id="label3">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="xalign">0.49000000953674316</property>
+        <property name="label" translatable="yes">Max familiarity: </property>
+      </object>
+      <packing>
+        <property name="top_attach">2</property>
+        <property name="bottom_attach">3</property>
       </packing>
     </child>
     <child>
       <object class="GtkCheckButton" id="unique_artist">
-        <property name="label" translatable="yes">Don't play same artist twice</property>
+        <property name="label" translatable="yes">Don't play same artist twice in a row</property>
         <property name="use_action_appearance">False</property>
         <property name="visible">True</property>
         <property name="can_focus">True</property>
@@ -80,9 +93,9 @@
         <property name="draw_indicator">True</property>
       </object>
       <packing>
-        <property name="expand">False</property>
-        <property name="fill">True</property>
-        <property name="position">3</property>
+        <property name="right_attach">2</property>
+        <property name="top_attach">3</property>
+        <property name="bottom_attach">4</property>
       </packing>
     </child>
   </object>

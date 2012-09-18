@@ -1,5 +1,5 @@
 import os
-from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio, GConf
+from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio, GConf, Gdk, GdkPixbuf
 import json
 import urllib, urllib2
 from gtk_persistence import GtkPersistence
@@ -38,9 +38,18 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         gconf = GConf.Client.get_default()
         self.echonest_source.initialize_ui(glade_file, gconf)
 
+        # a mapping of a url to similar artist data from that url.
+        # similar artist data is a mapping of sanitized_artist -> artist
         self.similar_artists_map = {}
 
+        self.initialize_icon()
+
+    def initialize_icon(self):
+        what, width, height = Gtk.icon_size_lookup(Gtk.IconSize.LARGE_TOOLBAR)
+        icon = GdkPixbuf.Pixbuf.new_from_file_at_size(self.find_file("icon.gif"), width, height)
         
+        
+        self.echonest_source.set_property("pixbuf", icon)
 
     def do_deactivate(self):
         shell = self.object
@@ -77,7 +86,7 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     def sanitize(self, s):
         return s.lower().replace(" ", "").replace("'", "")
 
-    def populate_similar_artists(self, first_artist):
+    def populate_similar_artists(self, first_artist, url):
         first_artist_sanitized = self.sanitize(first_artist)
 
         self.qm = RB.RhythmDBQueryModel.new_empty(self.db)
@@ -85,7 +94,7 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         for row in self.object.props.library_source.props.base_query_model:
             entry = row[0]
             artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
-            if self.sanitize(artist) in self.similar_artists_map[first_artist_sanitized] or self.sanitize(artist) == first_artist_sanitized:
+            if self.sanitize(artist) in self.similar_artists_map[url] or self.sanitize(artist) == first_artist_sanitized:
                 self.qm.add_entry(entry, -1)
         
         self.echonest_source.props.query_model = self.qm
@@ -93,10 +102,9 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         
     def get_similar_artists(self, first_artist):
-        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0".format(this.echonest_source.apikey, urllib.quote(first_artist.encode("utf8")))
+        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0&min_familiarity={2}&max_familiarity={3}".format(urllib.quote(self.echonest_source.apikey.get_text()), urllib.quote(first_artist.encode("utf8")), self.echonest_source.min_familiarity.get_value(), self.echonest_source.max_familiarity.get_value())
         
-        first_artist_sanitized = self.sanitize(first_artist)
-        if first_artist_sanitized not in self.similar_artists_map:
+        if url not in self.similar_artists_map:
             response = urllib2.urlopen(url)
             raw_data = response.read()
             similar_artists_json = json.loads(raw_data)
@@ -104,9 +112,9 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
             m = {}
             for each in similar_artists:
                 m[self.sanitize(each)] = each
-            self.similar_artists_map[first_artist_sanitized] = m
+            self.similar_artists_map[url] = m
 
-        self.populate_similar_artists(first_artist)
+        self.populate_similar_artists(first_artist, url)
 
     def find_file(self, filename):
         # from https://github.com/luqmana/rhythmbox-plugins/blob/master/equalizer/equalizer.py
@@ -123,14 +131,6 @@ class EchoNestSource(RB.BrowserSource):
     def __init__(self):
         RB.BrowserSource.__init__(self, name=_("Echo's Nest Recommendations"))
 
-    def save_state(self, widget, callback_data=None):
-        #TODO: save only one widget's information
-        self.gconf.set_float(GCONF_PREFIX + "/" + GCONF_MIN_FAMILIARITY, self.min_familiarity.get_value())
-        self.gconf.set_float(GCONF_PREFIX + "/" + GCONF_MAX_FAMILIARITY, self.max_familiarity.get_value())
-        self.gconf.set_bool(GCONF_PREFIX + "/" + GCONF_UNIQUE_ARTIST, self.unique_artist.get_active())
-        self.gconf.set_string(GCONF_PREFIX + "/" + GCONF_APIKEY, self.apikey.get_text())
-        
-
     def initialize_ui(self, glade_file, gconf):
         top_grid = self.get_children()[0]
 
@@ -143,6 +143,19 @@ class EchoNestSource(RB.BrowserSource):
         top_grid.insert_row(0)
         top_grid.attach(window, 0,0,1,1)
         self.show_all()
+        
+        self.min_familiarity = builder.get_object("min_familiarity")
+        self.min_familiarity.set_range(0, 1)
+        self.min_familiarity.set_increments(0.05, 0.05)
+        self.min_familiarity.set_value(0)
+
+        self.max_familiarity = builder.get_object("max_familiarity")
+        self.max_familiarity.set_range(0, 1)
+        self.max_familiarity.set_increments(0.05, 0.05)
+        self.max_familiarity.set_value(1)
+
+        self.apikey = builder.get_object("apikey_entry")
+        self.unique_artist = builder.get_object("unique_artist")
 
         gtkPersistence = GtkPersistence(gconf)
         window.foreach(gtkPersistence.apply_persistence, None)
