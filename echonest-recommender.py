@@ -85,7 +85,35 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         self.get_similar_artists(artist)
 
     def sanitize(self, s):
-        return s.lower().replace(" ", "").replace("'", "")
+        # make work lowercase, remove spaces and otherwise scrunch so that
+        # "The Yes" also matches "Yes", just in case both names exist in library
+        s = s.lower().replace(" ", "").replace("'", "")
+        if s[:4] == "the ":
+            s = s[4:]
+        return s
+
+    def scale(self, lst):
+        """Return a new lst which adds entries for each artist such that
+        every artist has the same number of tracks
+
+        TODO: we probably don't want some random artist with one track
+        to have the same number of tracks as someone else"""
+        m = {}
+        max_songs = 0
+        for entry in lst:
+            artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
+            sanitized_artist = self.sanitize(artist)
+            if sanitized_artist not in m:
+                m[sanitized_artist] = []
+            m[sanitized_artist].append(entry)
+            max_songs = max(max_songs, len(m[sanitized_artist]))
+        print "max_songs", max_songs
+        ret = []
+        for sanitized_artist, sub_lst in m.iteritems():
+            for i in xrange(max_songs):
+                ret.append(sub_lst[i % len(sub_lst)])
+        return ret
+        
 
     def populate_similar_artists(self, first_artist, url):
         """Iterate through library and populate our playlist with similar artists"""
@@ -94,6 +122,7 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         self.qm = RB.RhythmDBQueryModel.new_empty(self.db)
 
+        lst = []
         for row in self.object.props.library_source.props.base_query_model:
             entry = row[0]
             artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
@@ -103,9 +132,14 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
                     # skip this artist
                     pass
                 else:
-                    self.qm.add_entry(entry, -1)
+                    lst.append(entry)
             elif self.sanitize(artist) in self.similar_artists_map[url]:
-                self.qm.add_entry(entry, -1)
+                lst.append(entry)
+
+        lst = self.scale(lst)
+
+        for entry in lst:
+            self.qm.add_entry(entry, -1)
         
         self.echonest_source.props.query_model = self.qm
         self.echonest_source.get_entry_view().set_model(self.qm)
