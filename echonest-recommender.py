@@ -1,9 +1,25 @@
+def maybeInstallReactor():
+    import sys
+    if True:#'twisted.internet.reactor' not in sys:
+        from twisted.internet import gtk3reactor # s/2/3 if you're using gtk3
+        reactor = gtk3reactor.install()
+        reactor.startRunning()
+        reactor._simulate()
+    else:
+        from twisted.internet import reactor
+    return reactor
+
+reactor = maybeInstallReactor()
+
 import os
 from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio, GConf, Gdk, GdkPixbuf
 import json
 import urllib, urllib2
 from gtk_persistence import GtkPersistence
 import random
+
+from twisted.web import client
+
 
 class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     __gtype_name = 'echonest-recommender'
@@ -145,27 +161,27 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         self.echonest_source.props.query_model = self.qm
         self.echonest_source.get_entry_view().set_model(self.qm)
 
-        
+    
+    def read_then_populate_similar_artists(self, raw_data, first_artist, url):
+        similar_artists_json = json.loads(raw_data)
+        similar_artists = [each["name"].encode("utf8") for each in similar_artists_json["response"]["artists"]]
+        m = {}
+        for each in similar_artists:
+            m[self.sanitize(each)] = each
+        self.similar_artists_map[url] = m
+        self.populate_similar_artists(first_artist, url)
+        reactor.stop()
+
+    
     def get_similar_artists(self, first_artist):
         """Obtain similar artists, either from cache or from internet. Then call populate_artists with results"""
         url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0&min_familiarity={2}&max_familiarity={3}".format(urllib.quote(self.echonest_source.apikey.get_text()), urllib.quote(first_artist.encode("utf8")), self.echonest_source.min_familiarity.get_value(), self.echonest_source.max_familiarity.get_value())
 
         if url not in self.similar_artists_map:
-            try:
-                response = urllib2.urlopen(url)
-            except Exception as e:
-                print "ERROR:",e
-                print "FROM URL:",url
-                return
-            raw_data = response.read()
-            similar_artists_json = json.loads(raw_data)
-            similar_artists = [each["name"].encode("utf8") for each in similar_artists_json["response"]["artists"]]
-            m = {}
-            for each in similar_artists:
-                m[self.sanitize(each)] = each
-            self.similar_artists_map[url] = m
+            client.getPage(url).addCallback(self.read_then_populate_similar_artists, first_artist, url)
+        else:
 
-        self.populate_similar_artists(first_artist, url)
+            self.populate_similar_artists(first_artist, url)
 
     def find_file(self, filename):
         # from https://github.com/luqmana/rhythmbox-plugins/blob/master/equalizer/equalizer.py
