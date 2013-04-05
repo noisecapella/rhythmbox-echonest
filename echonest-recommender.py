@@ -1,15 +1,26 @@
 def maybeInstallReactor():
     import sys
-    if True:#'twisted.internet.reactor' not in sys:
+    try:
         from twisted.internet import gtk3reactor # s/2/3 if you're using gtk3
         reactor = gtk3reactor.install()
         reactor.startRunning()
         reactor._simulate()
-    else:
-        from twisted.internet import reactor
-    return reactor
+        return reactor
+    except:
+        try:
+            from twisted.internet import gtk2reactor
+            reactor = gtk2reactor.install()
+            reactor.startRunning()
+            reactor._simulate()
+            return reactor
+        except:
+            print "This plugin requires twisted to be installed"
+            exit(-1)
+    
 
 reactor = maybeInstallReactor()
+
+from sanitize import sanitize
 
 import os
 from gi.repository import GObject, RB, Peas, Gtk, GLib, Gio, GConf, Gdk, GdkPixbuf
@@ -19,7 +30,9 @@ from gtk_persistence import GtkPersistence
 import random
 
 from twisted.web import client
+from twisted.internet.defer import inlineCallbacks, returnValue
 
+from similar_artists import SimilarArtists
 
 class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
     __gtype_name = 'echonest-recommender'
@@ -57,7 +70,7 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         # a mapping of a url to similar artist data from that url.
         # similar artist data is a mapping of sanitized_artist -> artist
-        self.similar_artists_map = {}
+        self.similar_artists_obj = SimilarArtists()
 
         self.initialize_icon()
 
@@ -90,32 +103,45 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         if not source:
             return
 
-    def set_entry(self, entry):
-        """This is called whenever the current song changes"""
-        if entry == self.current_entry or not entry:
-            return
+    def populate_query_model(self, first_artist, similar_artists):
+        """Iterate through library and populate our playlist with similar artists"""
+        first_artist_sanitized = sanitize(first_artist)
 
-        self.current_entry = entry
+        self.qm = RB.RhythmDBQueryModel.new_empty(self.db)
 
-        title = unicode(entry.get_string(RB.RhythmDBPropType.TITLE ), 'utf-8')
-        artist = unicode(entry.get_string(RB.RhythmDBPropType.ARTIST ), 'utf-8')
-        self.get_similar_artists(artist)
+        lst = []
+        for row in self.object.props.library_source.props.base_query_model:
+            entry = row[0]
+            artist = unicode(entry.get_string(RB.RhythmDBPropType.ARTIST), 'utf-8')
 
-    def sanitize(self, s):
-        # make work lowercase, remove spaces and otherwise scrunch so that
-        # "The Yes" also matches "Yes", just in case both names exist in library
-        s = s.lower().replace(" ", "").replace("'", "")
-        if s[:4] == "the ":
-            s = s[4:]
-        return s
+            if sanitize(artist) == first_artist_sanitized:
+                if self.echonest_source.unique_artist.get_active() == True:
+                    # skip this artist
+                    pass
+                else:
+                    lst.append(entry)
+            elif sanitize(artist) in similar_artists:
+                lst.append(entry)
+
+        if self.echonest_source.scale_artists.get_active():
+            lst = self.scale(lst)
+
+        for entry in lst:
+            self.qm.add_entry(entry, -1)
+        
+        self.echonest_source.props.query_model = self.qm
+        self.echonest_source.get_entry_view().set_model(self.qm)
 
     def scale(self, lst):
         """Return a new lst which removes entries for each artist such that
         every artist has a similar number of tracks"""
+        if not lst:
+            return lst
+
         m = {}
         for entry in lst:
-            artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
-            sanitized_artist = self.sanitize(artist)
+            artist = unicode(entry.get_string(RB.RhythmDBPropType.ARTIST), 'utf-8')
+            sanitized_artist = sanitize(artist)
             if sanitized_artist not in m:
                 m[sanitized_artist] = []
             m[sanitized_artist].append(entry)
@@ -131,57 +157,27 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
         return ret
         
 
-    def populate_similar_artists(self, first_artist, url):
-        """Iterate through library and populate our playlist with similar artists"""
-        
-        first_artist_sanitized = self.sanitize(first_artist)
+    def set_entry(self, entry):
+        """This is called whenever the current song changes"""
+        if entry == self.current_entry or not entry:
+            return
 
-        self.qm = RB.RhythmDBQueryModel.new_empty(self.db)
+        self.current_entry = entry
 
-        lst = []
-        for row in self.object.props.library_source.props.base_query_model:
-            entry = row[0]
-            artist = entry.get_string(RB.RhythmDBPropType.ARTIST)
+        title = unicode(entry.get_string(RB.RhythmDBPropType.TITLE ), 'utf-8')
+        artist = unicode(entry.get_string(RB.RhythmDBPropType.ARTIST ), 'utf-8')
 
-            if self.sanitize(artist) == first_artist_sanitized:
-                if self.echonest_source.unique_artist.get_active() == True:
-                    # skip this artist
-                    pass
-                else:
-                    lst.append(entry)
-            elif self.sanitize(artist) in self.similar_artists_map[url]:
-                lst.append(entry)
+        reactor.callLater(0, self.update_similar_artists, artist)
 
-        if self.echonest_source.scale_artists.get_active():
-            lst = self.scale(lst)
+    @inlineCallbacks
+    def update_similar_artists(self, artist):
+        print "EXECUTING"
+        url, similar_artists = yield self.similar_artists_obj.get_similar_artists(artist,
+                                                                                  self.echonest_source.apikey.get_text(),
+                                                                                  self.echonest_source.min_familiarity.get_value(),
+                                                                                  self.echonest_source.max_familiarity.get_value())
+        self.populate_query_model(artist, similar_artists)
 
-        for entry in lst:
-            self.qm.add_entry(entry, -1)
-        
-        self.echonest_source.props.query_model = self.qm
-        self.echonest_source.get_entry_view().set_model(self.qm)
-
-    
-    def read_then_populate_similar_artists(self, raw_data, first_artist, url):
-        similar_artists_json = json.loads(raw_data)
-        similar_artists = [each["name"].encode("utf8") for each in similar_artists_json["response"]["artists"]]
-        m = {}
-        for each in similar_artists:
-            m[self.sanitize(each)] = each
-        self.similar_artists_map[url] = m
-        self.populate_similar_artists(first_artist, url)
-        reactor.stop()
-
-    
-    def get_similar_artists(self, first_artist):
-        """Obtain similar artists, either from cache or from internet. Then call populate_artists with results"""
-        url = "http://developer.echonest.com/api/v4/artist/similar?api_key={0}&name={1}&format=json&results=100&start=0&min_familiarity={2}&max_familiarity={3}".format(urllib.quote(self.echonest_source.apikey.get_text()), urllib.quote(first_artist.encode("utf8")), self.echonest_source.min_familiarity.get_value(), self.echonest_source.max_familiarity.get_value())
-
-        if url not in self.similar_artists_map:
-            client.getPage(url).addCallback(self.read_then_populate_similar_artists, first_artist, url)
-        else:
-
-            self.populate_similar_artists(first_artist, url)
 
     def find_file(self, filename):
         # from https://github.com/luqmana/rhythmbox-plugins/blob/master/equalizer/equalizer.py
@@ -194,40 +190,6 @@ class EchonestRecommenderPlugin (GObject.Object, Peas.Activatable):
 
         return RB.file(filename)        
 
-class EchoNestSource(RB.BrowserSource):
-    def __init__(self):
-        RB.BrowserSource.__init__(self, name=_("Echo's Nest Recommendations"))
 
-    def initialize_ui(self, glade_file, gconf):
-        top_grid = self.get_children()[0]
-
-        shell = self.props.shell
-
-        builder = Gtk.Builder()
-        builder.add_from_file(glade_file)
-
-        window = builder.get_object("box1")
-        top_grid.insert_row(0)
-        top_grid.attach(window, 0,0,1,1)
-        self.show_all()
-        
-        self.min_familiarity = builder.get_object("min_familiarity")
-        self.min_familiarity.set_range(0, 1)
-        self.min_familiarity.set_increments(0.05, 0.05)
-        self.min_familiarity.set_value(0)
-
-        self.max_familiarity = builder.get_object("max_familiarity")
-        self.max_familiarity.set_range(0, 1)
-        self.max_familiarity.set_increments(0.05, 0.05)
-        self.max_familiarity.set_value(1)
-
-        self.apikey = builder.get_object("apikey_entry")
-        self.unique_artist = builder.get_object("unique_artist")
-        self.scale_artists = builder.get_object("scale_artists")
-        gtkPersistence = GtkPersistence(gconf)
-        window.foreach(gtkPersistence.apply_persistence, None)
-
-
-
-
+from echonest_source import EchoNestSource
 GObject.type_register(EchoNestSource)
